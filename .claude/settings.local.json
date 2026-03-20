@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(npx create-next-app@latest appfactory --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(rm -rf appfactory)",
+      "Bash(npm install:*)",
+      "Bash(cd:*)",
+      "Bash(npx next:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:3003/appfactory)",
+      "Bash(curl:*)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(rm -rf .next)",
+      "WebFetch(domain:clear-challenge.vercel.app)",
+      "Bash(find '/c/Users/Administrator/OneDrive - Workspace Partners Sp. z o.o/Pulpit/DFE.academy/aplikacje DFE/CLEAR CHALLENGE/src' -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
+      "Bash(grep -r \"color-\\\\|#[0-9a-fA-F]\\\\{6\\\\}\" '/c/Users/Administrator/OneDrive - Workspace Partners Sp. z o.o/Pulpit/DFE.academy/aplikacje DFE/CLEAR CHALLENGE/src' --include=*.css --include=*.scss --include=*.tsx --include=*.ts)",
+      "Bash(grep -E \"\\\\.\\(css|scss|module\\\\.\\).*$\")",
+      "Bash(vercel --version)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel --yes --name app-factory)",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/next/package.json''\\).version\\)\")",
+      "Bash(vercel env:*)",
+      "Bash(vercel --prod)",
+      "Bash(vercel logs:*)",
+      "Bash(vercel inspect:*)",
+      "Bash(node -e \":*)",
+      "Bash(node -e \"console.log\\(require\\(''@anthropic-ai/sdk/package.json''\\).version\\)\")",
+      "Bash(python3 -c \"import sys,json;data=json.load\\(sys.stdin\\);[print\\(f''''{r[nickname]} | html={YES if r[generated_html] else NULL} | score={r[score_avg]} | {r[created_at]}''''\\) for r in data]\")",
+      "Bash(gh repo:*)"
+    ]
+  }
+}
