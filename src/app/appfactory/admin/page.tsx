@@ -24,6 +24,7 @@ export default function AdminPage() {
     top_words: { word: string; count: number }[];
   } | null>(null);
   const [lang, setLang] = useState<Lang>("pl");
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   const L = (key: Parameters<typeof t>[0]) => t(key, lang);
 
@@ -73,7 +74,10 @@ export default function AdminPage() {
       setSession(sess);
       setTopicConstraint(sess.topic_constraint || "");
       setPromptMaxLength(sess.prompt_max_length || 100);
-      setLang(sess.lang || "pl");
+      setInitialLoaded((prev) => {
+        if (!prev) setLang(sess.lang || "pl");
+        return true;
+      });
     }
 
     const { data: subs } = await supabase
@@ -96,7 +100,6 @@ export default function AdminPage() {
         (payload) => {
           const newSess = payload.new as SessionControl;
           setSession(newSess);
-          setLang(newSess.lang || "pl");
         }
       )
       .subscribe();
