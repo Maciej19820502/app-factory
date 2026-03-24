@@ -1,9 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
+import { getStopWords, type Lang } from "@/lib/translations";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = getServiceClient();
+
+    const langParam = req.nextUrl.searchParams.get("lang");
+    const lang: Lang = langParam === "en" ? "en" : "pl";
 
     const { data: submissions } = await supabase
       .from("app_submissions")
@@ -31,11 +35,7 @@ export async function GET() {
       .select("prompt_text");
 
     const wordMap: Record<string, number> = {};
-    const stopWords = new Set([
-      "i", "w", "z", "na", "do", "dla", "o", "od", "po", "ze",
-      "się", "to", "jest", "nie", "co", "jak", "lub", "a", "ale",
-      "że", "już", "też", "oraz", "który", "która", "które",
-    ]);
+    const stopWords = getStopWords(lang);
 
     (allSubmissions ?? []).forEach((s) => {
       s.prompt_text
@@ -61,6 +61,6 @@ export async function GET() {
     });
   } catch (err) {
     console.error("session-summary error:", err);
-    return NextResponse.json({ error: "Błąd serwera" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

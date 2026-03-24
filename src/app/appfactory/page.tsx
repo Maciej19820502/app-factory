@@ -3,13 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { AppSubmission, SessionControl } from "@/lib/supabase";
-
-const SPINNER_MESSAGES = [
-  "AI projektuje interfejs...",
-  "AI pisze kod...",
-  "AI testuje logikę...",
-  "Zaraz gotowe...",
-];
+import { t, getSpinnerMessages, type Lang } from "@/lib/translations";
 
 export default function ParticipantPage() {
   const [session, setSession] = useState<SessionControl | null>(null);
@@ -25,6 +19,10 @@ export default function ParticipantPage() {
 
   // Poll + realtime subscription for submission updates
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const lang: Lang = session?.lang || "pl";
+  const L = (key: Parameters<typeof t>[0]) => t(key, lang);
+  const SPINNER_MESSAGES = getSpinnerMessages(lang);
 
   const subscribeToSubmission = useCallback((id: string) => {
     // Realtime
@@ -117,7 +115,7 @@ export default function ParticipantPage() {
   useEffect(() => {
     if (submitting) {
       intervalRef.current = setInterval(() => {
-        setSpinnerIdx((prev) => (prev + 1) % SPINNER_MESSAGES.length);
+        setSpinnerIdx((prev) => (prev + 1) % 4);
       }, 2000);
     }
     return () => {
@@ -157,7 +155,7 @@ export default function ParticipantPage() {
         subscribeToSubmission(data.id);
       }
     } catch {
-      alert("Wystąpił błąd. Spróbuj ponownie.");
+      alert(L("errorGeneric"));
       setSubmitting(false);
     }
   };
@@ -192,10 +190,10 @@ export default function ParticipantPage() {
         <div className="text-center max-w-md">
           <div className="text-6xl mb-6">🏭</div>
           <h1 className="text-3xl font-bold mb-4 text-accent-teal">
-            AppFactory
+            {L("waitingTitle")}
           </h1>
           <p className="text-xl text-text-secondary">
-            Czekaj na uruchomienie sesji przez prowadzącego.
+            {L("waitingMessage")}
           </p>
           <div className="spinner mx-auto mt-8"></div>
         </div>
@@ -211,7 +209,7 @@ export default function ParticipantPage() {
           <div className="text-center mb-8 animate-fade-in">
             <div className="text-5xl mb-4">🎉</div>
             <h1 className="text-3xl font-bold text-accent-teal">
-              Twoja aplikacja jest gotowa!
+              {L("resultTitle")}
             </h1>
           </div>
 
@@ -232,7 +230,7 @@ export default function ParticipantPage() {
               onClick={copyLink}
               className="px-6 py-3 rounded-lg text-lg font-semibold transition-all bg-accent-teal text-bg-primary hover:brightness-110"
             >
-              {copied ? "Skopiowano!" : "Skopiuj link do aplikacji"}
+              {copied ? L("copied") : L("copyLink")}
             </button>
           </div>
 
@@ -240,19 +238,19 @@ export default function ParticipantPage() {
           {submission.score_avg !== null ? (
             <div className="rounded-xl p-6 animate-fade-in bg-bg-card">
               <h2 className="text-xl font-bold mb-4 text-center text-accent-gold">
-                Ocena AI
+                {L("aiScoreTitle")}
               </h2>
               <div className="space-y-3 mb-6">
-                <ScoreBar label="Innowacyjność" value={submission.score_innovation} />
-                <ScoreBar label="Efektywność biznesowa" value={submission.score_business} />
-                <ScoreBar label="Jakość promptu" value={submission.score_prompt} />
+                <ScoreBar label={L("scoreInnovation")} value={submission.score_innovation} />
+                <ScoreBar label={L("scoreBusiness")} value={submission.score_business} />
+                <ScoreBar label={L("scorePrompt")} value={submission.score_prompt} />
               </div>
               <div className="text-center">
                 <div className="text-5xl font-bold text-accent-gold">
                   {submission.score_avg}
                   <span className="text-2xl text-text-secondary">/100</span>
                 </div>
-                <p className="text-sm text-text-secondary mt-1">Wynik łączny</p>
+                <p className="text-sm text-text-secondary mt-1">{L("scoreTotalLabel")}</p>
               </div>
               {submission.ai_comment && (
                 <p className="text-text-secondary italic text-center mt-4">
@@ -263,7 +261,7 @@ export default function ParticipantPage() {
           ) : (
             <div className="text-center py-8">
               <div className="spinner mx-auto mb-4"></div>
-              <p className="text-text-secondary">AI ocenia Twoją aplikację...</p>
+              <p className="text-text-secondary">{L("scoringInProgress")}</p>
             </div>
           )}
         </div>
@@ -295,13 +293,13 @@ export default function ParticipantPage() {
             AppFactory
           </h1>
           <p className="text-text-secondary text-lg">
-            Opisz aplikację — AI ją stworzy w kilka sekund
+            {L("formTagline")}
           </p>
         </div>
 
         {session.topic_constraint && (
           <div className="rounded-lg px-4 py-3 mb-4 border border-accent-gold bg-bg-card">
-            <p className="text-sm text-text-secondary">Temat sesji:</p>
+            <p className="text-sm text-text-secondary">{L("topicLabel")}</p>
             <p className="font-semibold text-accent-gold">
               {session.topic_constraint}
             </p>
@@ -311,7 +309,7 @@ export default function ParticipantPage() {
         {rejectionMsg && (
           <div className="rounded-lg px-4 py-3 mb-4 border border-red-500/50 bg-bg-card">
             <p className="text-red-400 text-sm">{rejectionMsg}</p>
-            <p className="text-text-secondary text-xs mt-1">Zmień opis i spróbuj ponownie.</p>
+            <p className="text-text-secondary text-xs mt-1">{L("rejectionRetry")}</p>
           </div>
         )}
 
@@ -321,7 +319,7 @@ export default function ParticipantPage() {
         >
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">
-              Twój pseudonim
+              {L("nicknameLabel")}
             </label>
             <input
               type="text"
@@ -330,13 +328,13 @@ export default function ParticipantPage() {
               maxLength={30}
               required
               className="w-full px-4 py-3 rounded-lg bg-bg-input text-white border border-white/10 focus:outline-none focus:border-accent-teal text-lg"
-              placeholder="Twoje imię lub pseudonim"
+              placeholder={L("nicknamePlaceholder")}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">
-              Opisz swoją aplikację
+              {L("promptLabel")}
             </label>
             <textarea
               value={promptText}
@@ -345,11 +343,11 @@ export default function ParticipantPage() {
               required
               rows={3}
               className="w-full px-4 py-3 rounded-lg bg-bg-input text-white border border-white/10 focus:outline-none focus:border-accent-teal text-lg resize-none"
-              placeholder="Co ma robić Twoja aplikacja?"
+              placeholder={L("promptPlaceholder")}
             />
             <div className="flex justify-between items-center mt-1">
               <p className="text-sm text-text-secondary">
-                Przykład: kalkulator marży dla e-commerce
+                {L("promptExample")}
               </p>
               <span
                 className={`text-sm font-mono ${
@@ -366,7 +364,7 @@ export default function ParticipantPage() {
             disabled={!nickname.trim() || !promptText.trim() || submitting || submitted}
             className="w-full py-4 rounded-lg text-lg font-bold transition-all disabled:opacity-40 bg-accent-teal text-bg-primary hover:brightness-110"
           >
-            Stwórz aplikację →
+            {L("submitButton")}
           </button>
         </form>
       </div>

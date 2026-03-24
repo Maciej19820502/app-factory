@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { AppSubmission, SessionControl } from "@/lib/supabase";
+import { t, type Lang } from "@/lib/translations";
 
 export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -22,6 +23,9 @@ export default function AdminPage() {
     min_score: number;
     top_words: { word: string; count: number }[];
   } | null>(null);
+  const [lang, setLang] = useState<Lang>("pl");
+
+  const L = (key: Parameters<typeof t>[0]) => t(key, lang);
 
   // Auth check
   useEffect(() => {
@@ -35,7 +39,7 @@ export default function AdminPage() {
       sessionStorage.setItem("appfactory-admin", "true");
       setAuthenticated(true);
     } else {
-      alert("Nieprawidłowe hasło");
+      alert(L("wrongPassword"));
     }
   };
 
@@ -58,6 +62,7 @@ export default function AdminPage() {
           scoring_done: false,
           app_session: false,
           prompt_max_length: 100,
+          lang: "pl",
         })
         .select("*")
         .single();
@@ -68,6 +73,7 @@ export default function AdminPage() {
       setSession(sess);
       setTopicConstraint(sess.topic_constraint || "");
       setPromptMaxLength(sess.prompt_max_length || 100);
+      setLang(sess.lang || "pl");
     }
 
     const { data: subs } = await supabase
@@ -87,7 +93,11 @@ export default function AdminPage() {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "session_control", filter: "id=eq.2" },
-        (payload) => setSession(payload.new as SessionControl)
+        (payload) => {
+          const newSess = payload.new as SessionControl;
+          setSession(newSess);
+          setLang(newSess.lang || "pl");
+        }
       )
       .subscribe();
 
@@ -141,11 +151,12 @@ export default function AdminPage() {
         ends_at: endsAt,
         topic_constraint: topicConstraint.trim() || null,
         prompt_max_length: promptMaxLength,
+        lang,
       })
       .eq("id", 2);
     if (error) {
       console.error("startSession error:", error);
-      alert(`Błąd uruchamiania sesji: ${error.message}`);
+      alert(`${L("startError")}: ${error.message}`);
     } else {
       await fetchData();
     }
@@ -157,14 +168,14 @@ export default function AdminPage() {
       .update({ app_session: false, ends_at: null })
       .eq("id", 2);
     if (error) {
-      alert(`Błąd: ${error.message}`);
+      alert(`Error: ${error.message}`);
     } else {
       await fetchData();
     }
   };
 
   const resetSession = async () => {
-    if (!confirm("Czy na pewno chcesz zresetować sesję? Wszystkie aplikacje uczestników zostaną USUNIĘTE.")) return;
+    if (!confirm(L("resetConfirm"))) return;
     // Delete all submissions
     await supabase.from("app_submissions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     // Reset session
@@ -187,6 +198,7 @@ export default function AdminPage() {
       .update({
         topic_constraint: topicConstraint.trim() || null,
         prompt_max_length: promptMaxLength,
+        lang,
       })
       .eq("id", 2);
     setTopicSaved(true);
@@ -194,13 +206,13 @@ export default function AdminPage() {
   };
 
   const deleteSubmission = async (id: string, nickname: string) => {
-    if (!confirm(`Usunąć aplikację uczestnika "${nickname}"?`)) return;
+    if (!confirm(`${L("deleteConfirm")} "${nickname}"?`)) return;
     await supabase.from("app_submissions").delete().eq("id", id);
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   };
 
   const fetchSummary = async () => {
-    const res = await fetch("/api/session-summary");
+    const res = await fetch(`/api/session-summary?lang=${lang}`);
     const data = await res.json();
     setSummary(data);
     setShowSummary(true);
@@ -223,20 +235,20 @@ export default function AdminPage() {
           className="w-full max-w-sm rounded-xl p-6 space-y-4 bg-bg-card"
         >
           <h1 className="text-2xl font-bold text-center text-accent-teal">
-            Panel Admina
+            {L("adminPanelTitle")}
           </h1>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Hasło"
+            placeholder={L("passwordPlaceholder")}
             className="w-full px-4 py-3 rounded-lg bg-bg-input text-white border border-white/10 focus:outline-none focus:border-accent-teal"
           />
           <button
             type="submit"
             className="w-full py-3 rounded-lg font-bold bg-accent-teal text-bg-primary hover:brightness-110"
           >
-            Zaloguj
+            {L("loginButton")}
           </button>
         </form>
       </div>
@@ -249,14 +261,14 @@ export default function AdminPage() {
       <div className="rounded-xl p-5 mb-6 bg-bg-card">
         <div className="flex flex-wrap items-center gap-4">
           <h1 className="text-2xl font-bold text-accent-teal">
-            AppFactory Admin
+            {L("adminHeader")}
           </h1>
 
           <button
             onClick={logout}
             className="text-xs px-3 py-1 rounded-lg text-text-secondary border border-white/10 hover:bg-bg-input"
           >
-            Wyloguj
+            {L("logoutButton")}
           </button>
 
           <div className="flex items-center gap-2 ml-auto">
@@ -275,7 +287,7 @@ export default function AdminPage() {
                   onClick={startSession}
                   className="px-4 py-2 rounded-lg font-bold bg-green-600 text-white hover:bg-green-500"
                 >
-                  Uruchom sesję
+                  {L("startSession")}
                 </button>
               </>
             ) : (
@@ -284,13 +296,13 @@ export default function AdminPage() {
                   {timeLeft}
                 </span>
                 <span className="px-3 py-1 rounded-full text-sm font-bold bg-green-500/20 text-green-400">
-                  AKTYWNA
+                  {L("sessionActive")}
                 </span>
                 <button
                   onClick={stopSession}
                   className="px-4 py-2 rounded-lg font-bold bg-red-600 text-white hover:bg-red-500"
                 >
-                  Zakończ sesję
+                  {L("stopSession")}
                 </button>
               </>
             )}
@@ -300,39 +312,67 @@ export default function AdminPage() {
         <div className="flex items-center gap-3 mt-3">
           {!session?.app_session && (
             <p className="text-text-secondary text-sm">
-              Status: <span className="text-red-400 font-bold">NIEAKTYWNA</span>
+              {L("statusLabel")} <span className="text-red-400 font-bold">{L("sessionInactive")}</span>
             </p>
           )}
           <button
             onClick={resetSession}
             className="text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/15 ml-auto"
           >
-            Zresetuj sesję (usuń wszystko)
+            {L("resetSession")}
           </button>
         </div>
       </div>
 
-      {/* Topic Constraint */}
+      {/* Topic Constraint & Language */}
       <div className="rounded-xl p-5 mb-6 bg-bg-card">
         <div className="flex items-start gap-3">
           <div className="flex-1">
+            {/* Language switcher */}
+            <div className="flex items-center gap-3 mb-4">
+              <label className="text-sm font-medium text-text-secondary">
+                {L("languageLabel")}
+              </label>
+              <div className="flex rounded-lg overflow-hidden border border-white/10">
+                <button
+                  onClick={() => setLang("pl")}
+                  className={`px-4 py-2 text-sm font-bold transition-colors ${
+                    lang === "pl"
+                      ? "bg-accent-teal text-bg-primary"
+                      : "bg-bg-input text-text-secondary hover:text-white"
+                  }`}
+                >
+                  🇵🇱 PL
+                </button>
+                <button
+                  onClick={() => setLang("en")}
+                  className={`px-4 py-2 text-sm font-bold transition-colors ${
+                    lang === "en"
+                      ? "bg-accent-teal text-bg-primary"
+                      : "bg-bg-input text-text-secondary hover:text-white"
+                  }`}
+                >
+                  🇬🇧 EN
+                </button>
+              </div>
+            </div>
+
             <label className="block text-sm font-medium text-text-secondary mb-2">
-              Zawężenie tematyki aplikacji
+              {L("topicConstraintLabel")}
             </label>
             <textarea
               value={topicConstraint}
               onChange={(e) => setTopicConstraint(e.target.value)}
               rows={2}
-              placeholder="np. Aplikacje wspierające sprzedaż w e-commerce — zostaw puste, aby nie ograniczać tematyki"
+              placeholder={L("topicPlaceholder")}
               className="w-full px-4 py-3 rounded-lg bg-bg-input text-white border border-white/10 focus:outline-none focus:border-accent-teal text-sm resize-none"
             />
             <p className="text-xs text-text-secondary mt-1">
-              Jeśli ustawione — prompty spoza tego tematu zostaną odrzucone przez AI.
-              Uczestnik zobaczy informację o wymaganym temacie.
+              {L("topicHint")}
             </p>
             <div className="flex items-center gap-3 mt-3">
               <label className="text-sm text-text-secondary shrink-0">
-                Limit znaków promptu:
+                {L("promptLimitLabel")}
               </label>
               <input
                 type="number"
@@ -342,19 +382,19 @@ export default function AdminPage() {
                 max={500}
                 className="w-20 px-2 py-2 rounded bg-bg-input text-white border border-white/10 text-center text-sm"
               />
-              <span className="text-xs text-text-secondary">znaków (10–500)</span>
+              <span className="text-xs text-text-secondary">{L("promptLimitHint")}</span>
             </div>
           </div>
           <button
             onClick={saveTopic}
             className="px-4 py-2 rounded-lg font-bold text-sm mt-6 shrink-0 bg-accent-teal text-bg-primary hover:brightness-110"
           >
-            {topicSaved ? "Zapisano" : "Zapisz ustawienia"}
+            {topicSaved ? L("saved") : L("saveSettings")}
           </button>
         </div>
         {session?.topic_constraint && (
           <div className="mt-3 px-3 py-2 rounded-lg bg-bg-primary border border-accent-gold/30">
-            <p className="text-xs text-text-secondary">Aktualny temat widoczny dla uczestników:</p>
+            <p className="text-xs text-text-secondary">{L("currentTopicVisible")}</p>
             <p className="text-sm font-medium text-accent-gold">
               {session.topic_constraint}
             </p>
@@ -367,7 +407,7 @@ export default function AdminPage() {
         <div className="rounded-xl p-5 mb-6 bg-bg-card">
           <div className="flex items-center gap-3 mb-3">
             <h2 className="text-lg font-bold text-accent-teal">
-              Uczestnicy
+              {L("participantsHeader")}
             </h2>
             <span className="px-2 py-0.5 rounded-full text-sm font-bold bg-accent-teal/20 text-accent-teal">
               {submissions.length}
@@ -386,10 +426,10 @@ export default function AdminPage() {
                 ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
                 : "bg-accent-teal/10 text-accent-teal border-accent-teal/20";
               const statusLabel = status === "scored"
-                ? `${sub.score_avg} pkt`
+                ? `${sub.score_avg} ${L("statusPts")}`
                 : status === "generated"
-                ? "ocenianie..."
-                : "generowanie...";
+                ? L("statusScoring")
+                : L("statusGenerating");
               return (
                 <div
                   key={sub.id}
@@ -410,10 +450,10 @@ export default function AdminPage() {
           onClick={fetchSummary}
           className="px-5 py-2 rounded-lg font-bold bg-accent-gold text-bg-primary hover:brightness-110"
         >
-          Wygeneruj podsumowanie sesji
+          {L("summaryButton")}
         </button>
         <span className="text-text-secondary text-sm ml-3">
-          {submissions.length} aplikacji
+          {submissions.length} {L("appsCount")}
         </span>
       </div>
 
@@ -461,7 +501,7 @@ export default function AdminPage() {
                   >
                     <div className="text-center">
                       <div className="spinner mx-auto mb-2" style={{ width: "24px", height: "24px" }}></div>
-                      <p className="text-sm text-text-secondary">Generowanie...</p>
+                      <p className="text-sm text-text-secondary">{L("generating")}</p>
                     </div>
                   </div>
                 )}
@@ -485,7 +525,7 @@ export default function AdminPage() {
               ) : sub.generated_html ? (
                 <div className="flex items-center justify-center py-3">
                   <div className="spinner" style={{ width: "20px", height: "20px" }}></div>
-                  <span className="text-xs text-text-secondary ml-2">Ocenianie...</span>
+                  <span className="text-xs text-text-secondary ml-2">{L("statusScoring")}</span>
                 </div>
               ) : null}
 
@@ -498,7 +538,7 @@ export default function AdminPage() {
                     rel="noopener noreferrer"
                     className="flex-1 block text-center text-sm py-2 rounded-lg transition-colors bg-accent-teal/15 text-accent-teal hover:bg-accent-teal/25"
                   >
-                    Otwórz
+                    {L("openButton")}
                   </a>
                 )}
                 <button
@@ -517,19 +557,19 @@ export default function AdminPage() {
       {submissions.length > 0 && (
         <div className="rounded-xl p-5 mt-8 mb-6 overflow-x-auto bg-bg-card">
           <h2 className="text-xl font-bold mb-4 text-accent-gold">
-            Tabela wyników
+            {L("resultsTableHeader")}
           </h2>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 text-text-secondary text-left">
                 <th className="py-2 pr-3">#</th>
-                <th className="py-2 pr-3">Uczestnik</th>
+                <th className="py-2 pr-3">{L("colParticipant")}</th>
                 <th className="py-2 pr-3">Prompt</th>
                 <th className="py-2 pr-3 text-center">🚀</th>
                 <th className="py-2 pr-3 text-center">💼</th>
                 <th className="py-2 pr-3 text-center">✍️</th>
                 <th className="py-2 pr-3 text-center font-bold text-accent-gold">Avg</th>
-                <th className="py-2 text-center">Akcje</th>
+                <th className="py-2 text-center">{L("colActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -593,7 +633,7 @@ export default function AdminPage() {
         <div className="text-center py-20">
           <div className="text-5xl mb-4">📭</div>
           <p className="text-text-secondary text-lg">
-            Brak aplikacji. Uruchom sesję i poczekaj na zgłoszenia uczestników.
+            {L("emptyState")}
           </p>
         </div>
       )}
@@ -610,18 +650,18 @@ export default function AdminPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-2xl font-bold mb-4 text-accent-gold">
-              Podsumowanie sesji
+              {L("summaryTitle")}
             </h2>
             <div className="space-y-3">
-              <StatRow label="Liczba aplikacji" value={summary.total_apps} />
-              <StatRow label="Średni wynik" value={summary.avg_score} />
-              <StatRow label="Najwyższy wynik" value={summary.max_score} />
-              <StatRow label="Najniższy wynik" value={summary.min_score} />
+              <StatRow label={L("statTotalApps")} value={summary.total_apps} />
+              <StatRow label={L("statAvgScore")} value={summary.avg_score} />
+              <StatRow label={L("statMaxScore")} value={summary.max_score} />
+              <StatRow label={L("statMinScore")} value={summary.min_score} />
 
               {summary.top_words.length > 0 && (
                 <div>
                   <p className="text-sm text-text-secondary mb-2">
-                    Najczęstsze słowa w promptach:
+                    {L("topWordsLabel")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {summary.top_words.map((w) => (
@@ -640,7 +680,7 @@ export default function AdminPage() {
               onClick={() => setShowSummary(false)}
               className="w-full mt-6 py-2 rounded-lg font-bold bg-accent-teal text-bg-primary hover:brightness-110"
             >
-              Zamknij
+              {L("closeButton")}
             </button>
           </div>
         </div>

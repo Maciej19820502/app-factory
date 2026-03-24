@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
+import { getScoringPrompt, type Lang } from "@/lib/translations";
 
 export const maxDuration = 60;
 
@@ -37,6 +38,15 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient();
 
+    // Get session lang
+    const { data: session } = await supabase
+      .from("session_control")
+      .select("lang")
+      .eq("id", 2)
+      .single();
+
+    const lang: Lang = (session?.lang as Lang) || "pl";
+
     const { data: record } = await supabase
       .from("app_submissions")
       .select("*")
@@ -48,18 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     const text = await callClaude(
-      `Jesteś ekspertem oceniającym mini-aplikacje stworzone przez AI na podstawie krótkiego promptu. Oceń TYLKO w JSON, bez żadnego dodatkowego tekstu:
-{
-  "score_innovation": liczba 0-100,
-  "score_business": liczba 0-100,
-  "score_prompt": liczba 0-100,
-  "ai_comment": "komentarz po polsku, max 2 zdania — co udało się osiągnąć i jedna konkretna wskazówka"
-}
-
-Kryteria:
-- innovation: oryginalność pomysłu, nieoczywiste zastosowanie
-- business: czy aplikacja rozwiązuje realny problem biznesowy
-- prompt: precyzja i spryt w 100 znakach`,
+      getScoringPrompt(lang),
       `Prompt uczestnika: ${record.prompt_text}\nWygenerowany kod HTML: ${record.generated_html.slice(0, 800)}`,
       1024
     );
@@ -85,6 +84,6 @@ Kryteria:
     return NextResponse.json({ success: true, scores: { ...scores, score_avg: scoreAvg } });
   } catch (err) {
     console.error("score-app error:", err);
-    return NextResponse.json({ error: "Błąd serwera" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

@@ -56,7 +56,7 @@ export default function ArtifactPage({ params }: { params: Promise<{ slug: strin
             404
           </h1>
           <p className="text-xl text-text-secondary">
-            Nie znaleziono aplikacji o podanym identyfikatorze.
+            No app found with this identifier.
           </p>
         </div>
       </div>

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
+import {
+  t, tReplace, type Lang,
+  getTopicValidationPrompt, getGenerationPrompt, getScoringPrompt,
+} from "@/lib/translations";
 
 export const maxDuration = 60;
 
@@ -41,29 +45,30 @@ export async function POST(req: NextRequest) {
     // Check session is active
     const { data: session } = await supabase
       .from("session_control")
-      .select("app_session, topic_constraint, prompt_max_length")
+      .select("app_session, topic_constraint, prompt_max_length, lang")
       .eq("id", 2)
       .single();
 
     if (!session?.app_session) {
-      return NextResponse.json({ error: "Sesja nie jest aktywna" }, { status: 403 });
+      return NextResponse.json({ error: t("errSessionInactive", (session?.lang as Lang) || "pl") }, { status: 403 });
     }
 
+    const lang: Lang = (session.lang as Lang) || "pl";
     const maxLen = session.prompt_max_length || 100;
+
     if (prompt_text.length > maxLen) {
-      return NextResponse.json({ error: `Prompt za długi (max ${maxLen} znaków)` }, { status: 400 });
+      return NextResponse.json(
+        { error: tReplace("errPromptTooLong", lang, { max: String(maxLen) }) },
+        { status: 400 }
+      );
     }
 
     // Validate topic constraint if set
     if (session.topic_constraint) {
+      const topicPrompt = getTopicValidationPrompt(lang);
       const valText = await callClaude(
-        `Jesteś strażnikiem tematyki sesji tworzenia aplikacji. Oceń czy prompt uczestnika mieści się w temacie sesji.
-
-Odpowiedz TYLKO w JSON, bez żadnego dodatkowego tekstu:
-{"allowed": true/false, "reason": "krótkie wyjaśnienie po polsku, max 1 zdanie"}
-
-Bądź dość liberalny — akceptuj prompty luźno powiązane z tematem. Odrzucaj tylko te zupełnie niezwiązane.`,
-        `Temat sesji: "${session.topic_constraint}"\nPrompt uczestnika: "${prompt_text}"`,
+        topicPrompt.system,
+        topicPrompt.user(session.topic_constraint, prompt_text),
         200
       );
 
@@ -71,9 +76,13 @@ Bądź dość liberalny — akceptuj prompty luźno powiązane z tematem. Odrzuc
       try {
         const valResult = JSON.parse(valClean);
         if (!valResult.allowed) {
+          const reason = valResult.reason || t("errTopicFallback", lang);
           return NextResponse.json(
             {
-              error: `Twój prompt nie mieści się w temacie sesji: "${session.topic_constraint}". ${valResult.reason || "Spróbuj opisać aplikację związaną z wybranym tematem."}`,
+              error: tReplace("errTopicRejection", lang, {
+                topic: session.topic_constraint,
+                reason,
+              }),
             },
             { status: 400 }
           );
@@ -109,40 +118,30 @@ Bądź dość liberalny — akceptuj prompty luźno powiązane z tematem. Odrzuc
       .single();
 
     if (insertError || !record) {
-      return NextResponse.json({ error: "Błąd zapisu do bazy" }, { status: 500 });
+      return NextResponse.json({ error: t("errDbInsert", lang) }, { status: 500 });
     }
 
     // Generate HTML and score in background after response is sent
     after(async () => {
-      await generateAndScore(record.id, prompt_text);
+      await generateAndScore(record.id, prompt_text, lang);
     });
 
     return NextResponse.json({ id: record.id, slug });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("generate-app error:", message, err);
-    return NextResponse.json({ error: `Błąd serwera: ${message}` }, { status: 500 });
+    return NextResponse.json({ error: `${t("errServer", "pl")}: ${message}` }, { status: 500 });
   }
 }
 
-async function generateAndScore(recordId: string, promptText: string) {
+async function generateAndScore(recordId: string, promptText: string, lang: Lang) {
   const supabase = getServiceClient();
 
   try {
+    const genPrompt = getGenerationPrompt(lang);
     const generatedHtml = await callClaude(
-      `Jesteś generatorem mini-aplikacji webowych. Na podstawie opisu użytkownika stwórz KOMPLETNY, działający plik HTML (jeden plik, bez zewnętrznych zależności poza CDN).
-
-Wymagania techniczne:
-- Jeden plik HTML z CSS i JS w środku
-- Możesz użyć tylko CDN: Tailwind CSS (play.tailwindcss.com/cdn) lub vanilla JS — bez npm, bez React
-- Aplikacja musi działać po wklejeniu kodu w przeglądarkę
-- Rozmiar kodu: max 200 linii
-- Styl: ciemne tło #1a1a2e, akcenty w kolorze #00d4ff
-- Aplikacja ma być FUNKCJONALNA — nie tylko wizualna makieta
-
-Zwróć WYŁĄCZNIE kod HTML, zaczynający się od <!DOCTYPE html>.
-Żadnego opisu, żadnego markdown, żadnych backticks.`,
-      `Stwórz aplikację: ${promptText}`,
+      genPrompt.system,
+      genPrompt.user(promptText),
       4096
     );
 
@@ -151,29 +150,18 @@ Zwróć WYŁĄCZNIE kod HTML, zaczynający się od <!DOCTYPE html>.
       .update({ generated_html: generatedHtml })
       .eq("id", recordId);
 
-    await scoreApp(recordId, promptText, generatedHtml);
+    await scoreApp(recordId, promptText, generatedHtml, lang);
   } catch (err) {
     console.error("Generation error for", recordId, err);
   }
 }
 
-async function scoreApp(recordId: string, promptText: string, generatedHtml: string) {
+async function scoreApp(recordId: string, promptText: string, generatedHtml: string, lang: Lang) {
   const supabase = getServiceClient();
 
   try {
     const text = await callClaude(
-      `Jesteś ekspertem oceniającym mini-aplikacje stworzone przez AI na podstawie krótkiego promptu. Oceń TYLKO w JSON, bez żadnego dodatkowego tekstu:
-{
-  "score_innovation": liczba 0-100,
-  "score_business": liczba 0-100,
-  "score_prompt": liczba 0-100,
-  "ai_comment": "komentarz po polsku, max 2 zdania — co udało się osiągnąć i jedna konkretna wskazówka"
-}
-
-Kryteria:
-- innovation: oryginalność pomysłu, nieoczywiste zastosowanie
-- business: czy aplikacja rozwiązuje realny problem biznesowy
-- prompt: precyzja i spryt w 100 znakach`,
+      getScoringPrompt(lang),
       `Prompt uczestnika: ${promptText}\nWygenerowany kod HTML: ${generatedHtml.slice(0, 800)}`,
       1024
     );

@@ -56,6 +56,7 @@ ON CONFLICT (id) DO UPDATE SET app_session = EXCLUDED.app_session;
 ALTER TABLE session_control ADD COLUMN IF NOT EXISTS app_session BOOLEAN DEFAULT false;
 ALTER TABLE session_control ADD COLUMN IF NOT EXISTS topic_constraint TEXT;
 ALTER TABLE session_control ADD COLUMN IF NOT EXISTS prompt_max_length INTEGER DEFAULT 100;
+ALTER TABLE session_control ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'pl';
 
 -- 3. Włącz Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE app_submissions;

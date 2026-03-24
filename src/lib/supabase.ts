@@ -55,4 +55,5 @@ export type SessionControl = {
   app_session: boolean;
   topic_constraint: string | null;
   prompt_max_length: number;
+  lang: "pl" | "en";
 };
